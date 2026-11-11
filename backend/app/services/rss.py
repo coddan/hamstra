@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..indexers import manager
 from ..models import Album, Episode, Movie, QueueItem, Series
-from . import decision, grab, music, naming
+from . import decision, grab, music, naming, refresh
 from .music_parser import name_matches
 from .errors import GrabBlocked
 from .parser import parse
@@ -53,6 +53,10 @@ def sync(db: Session) -> dict:
         if rel.is_tv and rel.air_date is not None:       # daily show: match by air date
             for s, e in shows.get(key, []):
                 if e.air_date == rel.air_date:
+                    targets.setdefault(("e", e.id), (grab.episode_want(s, e), (s, e), []))[2].append(r)
+        elif rel.absolute is not None and not rel.is_tv and key in shows:  # anime style: Show - 137
+            for s, e in shows.get(key, []):
+                if s.absolute_numbering and refresh.absolute_numbers(s).get((e.season, e.number)) == rel.absolute:
                     targets.setdefault(("e", e.id), (grab.episode_want(s, e), (s, e), []))[2].append(r)
         elif rel.is_tv:
             if rel.season_pack or not rel.episodes:

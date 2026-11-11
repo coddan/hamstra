@@ -27,6 +27,7 @@ SEASON_EP = re.compile(
 ALT_EP = re.compile(r"\b(?P<s>\d{1,2})x(?P<e1>\d{2,3})\b")
 SEASON_WORD = re.compile(r"\bSeason[ ._]?(?P<s>\d{1,2})\b", re.I)
 DATE = re.compile(r"(?<![0-9])((?:19|20)\d{2})[ .\-_](0?[1-9]|1[0-2])[ .\-_](0?[1-9]|[12]\d|3[01])(?![0-9])")
+ABSOLUTE = re.compile(r"(?:^|\s)-\s+(?:E|EP)?(?P<n>\d{1,4})(?:v\d)?(?=[\s\[(]|$)|\b(?:E|EP)(?P<n2>\d{2,4})(?:v\d)?(?=[\s\[(]|$)", re.I)
 YEAR = re.compile(r"[\s(\[.]((?:19|20)\d{2})[\s)\].]")
 JUNK = re.compile(
     r"\b(swedish|swesub|svenska|svensk|dubbad|textad|swe|nordic|dubbed|multi|complete|extended|unrated|remastered|internal|limited|proper|repack"
@@ -43,6 +44,7 @@ class Release:
     episodes: list[int] = field(default_factory=list)
     season_pack: bool = False
     season_end: int | None = None  # set for multi-season packs (S01-S09)
+    absolute: int | None = None  # anime style: "Show - 137" (no season)
     air_date: date | None = None  # daily / talk shows are named by date: Show.2026.11.10
     resolution: int | None = None
     source: str | None = None
@@ -68,7 +70,7 @@ def _first(patterns, text):
 def parse(name: str) -> Release:
     r = Release(raw=name)
     base = re.sub(r"\.(mkv|mp4|avi|m4v|torrent)$", "", name.strip(), flags=re.I)
-    text = _SEP.sub(" ", base)
+    text = _SEP.sub(" ", re.sub(r"^\s*\[[^\]]{1,40}\]\s*", "", base))   # leading [FansubGroup]
 
     r.resolution = _first(RESOLUTION, text)
     r.source = _first(SOURCE, text)
@@ -110,6 +112,12 @@ def parse(name: str) -> Release:
 
     if dm:
         cut = dm.start()
+    elif r.season is None:
+        am = ABSOLUTE.search(text)
+        if am:
+            n = int(am.group("n") or am.group("n2"))
+            if not (1900 <= n <= 2099 and am.group("n")):        # " - 2019" is a year, not episode 2019
+                r.absolute, cut = n, am.start()
     tech = [x.start() for x in (
         *(rx.search(text) for rx, _ in RESOLUTION), *(rx.search(text) for rx, _ in SOURCE),
         *(rx.search(text) for rx, _ in CODEC), JUNK.search(text)) if x]

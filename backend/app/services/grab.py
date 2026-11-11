@@ -55,7 +55,11 @@ def movie_want(m: Movie) -> decision.Want:
 
 
 def episode_want(s: Series, e: Episode) -> decision.Want:
-    return decision.Want("episode", s.title, s.year, e.season, e.number, e.file_resolution, e.has_file, air_date=e.air_date)
+    from .refresh import absolute_numbers
+
+    absolute = absolute_numbers(s).get((e.season, e.number)) if s.absolute_numbering else None
+    return decision.Want("episode", s.title, s.year, e.season, e.number, e.file_resolution, e.has_file, air_date=e.air_date,
+                         absolute=absolute)
 
 
 def in_queue(db: Session, movie_id: int | None = None, episode_id: int | None = None, album_id: int | None = None) -> bool:
@@ -89,9 +93,26 @@ def candidates_movie(db: Session, m: Movie):
 
 
 def candidates_episode(db: Session, s: Series, e: Episode):
+    """Search by season/episode. Daily shows are also searched by air date, absolute-numbered shows by number:
+    both are plain text searches, because trackers rarely index those names as season/episode."""
+    from .refresh import absolute_numbers
+
     _ensure_ids(db, s)
-    return manager.search_all(db, s.title, "tvsearch", season=e.season, episode=e.number,
-                              imdb_id=s.imdb_id or None, tvdb_id=s.tvdb_id)
+    results, errors = manager.search_all(db, s.title, "tvsearch", season=e.season, episode=e.number,
+                                         imdb_id=s.imdb_id or None, tvdb_id=s.tvdb_id)
+    extra: list[str] = []
+    if e.air_date and e.season > 0:
+        extra.append(f"{s.title} {e.air_date:%Y %m %d}")
+    if s.absolute_numbering and e.season > 0:
+        n = absolute_numbers(s).get((e.season, e.number))
+        if n:
+            extra.append(f"{s.title} {n:02d}")
+    seen = {r.download_url for r in results}
+    for q in extra:
+        more, errs = manager.search_all(db, q, "search")
+        errors = [*errors, *errs]
+        results += [r for r in more if r.download_url not in seen and not seen.add(r.download_url)]
+    return results, errors
 
 
 def season_want(s: Series, season: int, count: int) -> decision.Want:

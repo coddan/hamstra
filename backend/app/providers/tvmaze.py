@@ -45,6 +45,7 @@ def _show(s: dict) -> dict:
         "status": s.get("status"),
         "imdb_id": (s.get("externals") or {}).get("imdb"),
         "tvdb_id": (s.get("externals") or {}).get("thetvdb"),
+        "genres": s.get("genres") or [],
     }
 
 
@@ -57,11 +58,17 @@ def show_details(tvmaze_id: int) -> dict:
 
 
 def episodes(tvmaze_id: int) -> list[dict]:
-    return [
+    """Regular episodes keep their season and number. Specials (TVmaze gives them no number) become season 0,
+    numbered 1..N by air date; the caller keeps those numbers stable on later refreshes."""
+    raw = _get(f"/shows/{tvmaze_id}/episodes", specials=1)
+    out = [
         {"season": e["season"], "number": e["number"], "title": e["name"], "air_date": e.get("airdate") or None}
-        for e in _get(f"/shows/{tvmaze_id}/episodes")
-        if e.get("number") is not None
+        for e in raw if e.get("number") is not None
     ]
+    specials = sorted((e for e in raw if e.get("number") is None), key=lambda e: (e.get("airdate") or "9999", e["id"]))
+    out += [{"season": 0, "number": i, "title": e["name"], "air_date": e.get("airdate") or None, "special": True}
+            for i, e in enumerate(specials, 1)]
+    return out
 
 
 def lookup_imdb(imdb_id: str) -> list[dict]:

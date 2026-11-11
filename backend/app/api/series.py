@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Episode, QualityProfile, RootFolder, Series
 from ..providers import tvmaze
-from ..services import library_files, grab, naming
+from ..services import library_files, grab, naming, refresh
 from ..services.errors import GrabBlocked
 
 router = APIRouter(prefix="/api/v1/series", tags=["series"])
@@ -26,13 +26,15 @@ def series_out(s: Series, detail: bool = False) -> dict:
         "id": s.id, "tvmaze_id": s.tvmaze_id, "title": s.title, "year": s.year,
         "overview": s.overview, "poster_url": s.poster_url, "status": s.status,
         "monitored": s.monitored, "path": s.path, "quality_profile_id": s.quality_profile_id,
-        "episode_count": len(s.episodes), "file_count": sum(e.has_file for e in s.episodes),
+        "absolute_numbering": s.absolute_numbering,
+        "episode_count": sum(1 for e in s.episodes if e.season > 0 or e.monitored or e.has_file), "file_count": sum(e.has_file for e in s.episodes),
     }
     if detail:
+        absolute = refresh.absolute_numbers(s) if s.absolute_numbering else {}
         out["episodes"] = [
             {"id": e.id, "season": e.season, "number": e.number, "title": e.title,
              "air_date": e.air_date.isoformat() if e.air_date else None,
-             "monitored": e.monitored, "has_file": e.has_file}
+             "monitored": e.monitored, "has_file": e.has_file, "absolute": absolute.get((e.season, e.number))}
             for e in s.episodes
         ]
     return out
@@ -53,11 +55,8 @@ def add_series_from_provider(db: Session, tvmaze_id: int, monitored: bool = True
         root_folder_id=root.id, quality_profile_id=profile.id if profile else None,
         path=f"{root.path}/{naming.folder_name(d['title'], d['year'])}",
     )
-    for e in tvmaze.episodes(tvmaze_id):
-        s.episodes.append(Episode(
-            season=e["season"], number=e["number"], title=e["title"],
-            air_date=date.fromisoformat(e["air_date"]) if e["air_date"] else None,
-        ))
+    s.absolute_numbering = any(g.lower() == "anime" for g in d.get("genres") or [])
+    refresh.merge_episodes(s, tvmaze.episodes(tvmaze_id))
     db.add(s)
     db.commit()
     return s
@@ -103,6 +102,7 @@ def add_series(body: SeriesAdd, db: Session = Depends(get_db)):
 class SeriesPatch(BaseModel):
     monitored: bool | None = None
     quality_profile_id: int | None = None
+    absolute_numbering: bool | None = None
 
 
 @router.patch("/{series_id}")
@@ -113,11 +113,14 @@ def patch_series(series_id: int, body: SeriesPatch, db: Session = Depends(get_db
     if body.monitored is not None:
         s.monitored = body.monitored
         for e in s.episodes:
-            e.monitored = body.monitored
+            if e.season > 0:     # specials are never switched on in bulk
+                e.monitored = body.monitored
     if body.quality_profile_id is not None:
         if not db.get(QualityProfile, body.quality_profile_id):
             raise HTTPException(400, "Unknown profile")
         s.quality_profile_id = body.quality_profile_id
+    if body.absolute_numbering is not None:
+        s.absolute_numbering = body.absolute_numbering
     db.commit()
     return series_out(s)
 

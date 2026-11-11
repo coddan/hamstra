@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Album, Episode, History, Movie, QueueItem, Series
-from . import naming, notify, unpack
+from . import naming, notify, refresh, unpack
 from .request_notice import mark_available
 from .parser import parse
 
@@ -228,6 +228,9 @@ def _place_and_finish(db: Session, item: QueueItem, videos: list[Path], scratch:
             if not keys:  # daily show: the file is named by air date
                 d = naming.parse_air_date(video.name)
                 keys = [(e.season, e.number) for e in wanted.values() if d and e.air_date == d]
+            if not keys and s.absolute_numbering:  # anime: "Show - 137"
+                n = parse(video.name).absolute
+                keys = [k for k, v in refresh.absolute_numbers(s).items() if n is not None and v == n and k in by_key]
             for key in keys:
                 e = by_key.get(key)
                 if not e:

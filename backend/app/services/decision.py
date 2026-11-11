@@ -34,6 +34,7 @@ class Want:
     has_file: bool = False
     episode_count: int = 1  # for season packs: number of episodes wanted
     air_date: object = None  # date of the wanted episode (daily shows are named by date)
+    absolute: int | None = None  # absolute number of the wanted episode (only for shows flagged as absolute-numbered)
 
 
 @dataclass
@@ -62,8 +63,13 @@ def evaluate(r: Result, want: Want, profile: Profile, blocked: set[str] = frozen
         if r.size and r.size > profile.max_size_gb_movie * 1e9:
             why.append("too large")
     else:
-        if not rel.is_tv:
+        if not rel.is_tv and rel.absolute is None:
             why.append("not a TV release")
+        elif rel.absolute is not None and not rel.is_tv:
+            if want.kind != "episode" or want.absolute is None:
+                why.append("absolute numbering (not enabled for this show)" if want.kind == "episode" else "not a season pack")
+            elif rel.absolute != want.absolute:
+                why.append("wrong episode")
         elif rel.air_date is not None:
             if want.kind != "episode" or rel.air_date != want.air_date:
                 why.append("wrong air date")

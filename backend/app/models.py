@@ -71,6 +71,7 @@ class Series(Base):
     tvdb_id: Mapped[int | None] = mapped_column(Integer)
     refreshed_at: Mapped[datetime | None] = mapped_column(DateTime)
     monitored: Mapped[bool] = mapped_column(Boolean, default=True)
+    absolute_numbering: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")  # releases are named "Show - 137"
     path: Mapped[str | None] = mapped_column(String)
     root_folder_id: Mapped[int | None] = mapped_column(ForeignKey("root_folders.id"))
     quality_profile_id: Mapped[int | None] = mapped_column(ForeignKey("quality_profiles.id"))

@@ -18,7 +18,7 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 export type Movie = {
   id: number; tmdb_id: number; title: string; year: number | null; poster_url: string | null
   certification: string | null; has_file: boolean; root_kind: string | null; overview: string | null
-  monitored: boolean
+  monitored: boolean; absolute_numbering?: boolean
 }
 export type Series = {
   id: number; tvmaze_id: number; title: string; year: number | null; poster_url: string | null

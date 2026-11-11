@@ -8,6 +8,7 @@ services:
       - "8000:8000"                    # web UI + API
       - "6881:6881"                    # torrent port (TCP and UDP): forward it on your router for better speeds
       - "6881:6881/udp"
+    # Settings can come from the environment block below or from a .env file (copy .env.example): env_file: .env
     environment:
       HAMSTRA_TMDB_API_KEY: "CHANGE"                     # TMDB "API Read Access Token" (free, themoviedb.org/settings/api)
       HAMSTRA_API_KEY: "CHANGE-to-a-long-random-string"  # lets scripts call the API; the web UI uses accounts

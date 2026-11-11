@@ -59,7 +59,7 @@ The database is copied every night at 03:30 (last 14 kept) into `<config>/backup
     cd frontend && npm install && npm run dev        # proxies /api to :8000
     ./e2e/README.md                                   # browser check with screenshots (Playwright, in a container)
 
-Settings come from `HAMSTRA_*` environment variables (the older `ARR_*` names still work; see `backend/app/config.py`) and from the Settings pages.
+Settings come from `HAMSTRA_*` environment variables (a commented template is in [`.env.example`](.env.example)) (the older `ARR_*` names still work; see `backend/app/config.py`) and from the Settings pages.
 Database migrations (Alembic) run automatically at start.
 
 ## Kubernetes

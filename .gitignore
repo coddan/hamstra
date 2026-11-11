@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+data/
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+*.bak*
+config/
+e2e/shots/
+.DS_Store
+.idea/
+.vscode/

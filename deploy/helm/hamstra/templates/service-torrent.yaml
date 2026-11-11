@@ -1,0 +1,34 @@
+{{- if .Values.torrent.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamstra.fullname" . }}-torrent
+  labels:
+    {{- include "hamstra.labels" . | nindent 4 }}
+  {{- with .Values.torrent.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.torrent.service.type }}
+  {{- if .Values.torrent.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.torrent.service.externalTrafficPolicy }}
+  {{- end }}
+  ports:
+    - name: torrent-tcp
+      port: {{ .Values.torrent.port }}
+      targetPort: torrent-tcp
+      protocol: TCP
+      {{- if and .Values.torrent.service.nodePort (eq .Values.torrent.service.type "NodePort") }}
+      nodePort: {{ .Values.torrent.service.nodePort }}
+      {{- end }}
+    - name: torrent-udp
+      port: {{ .Values.torrent.port }}
+      targetPort: torrent-udp
+      protocol: UDP
+      {{- if and .Values.torrent.service.nodePort (eq .Values.torrent.service.type "NodePort") }}
+      nodePort: {{ .Values.torrent.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "hamstra.selectorLabels" . | nindent 4 }}
+{{- end }}

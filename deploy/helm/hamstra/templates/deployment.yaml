@@ -1,0 +1,196 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hamstra.fullname" . }}
+  labels:
+    {{- include "hamstra.labels" . | nindent 4 }}
+spec:
+  replicas: 1                      # one SQLite database + one torrent session: never scale this up
+  strategy:
+    type: Recreate                 # the old pod must release the database before the new one starts
+  selector:
+    matchLabels:
+      {{- include "hamstra.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "hamstra.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "hamstra.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: hamstra
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: torrent-tcp
+              containerPort: 6881
+              protocol: TCP
+            - name: torrent-udp
+              containerPort: 6881
+              protocol: UDP
+          env:
+            - name: HAMSTRA_DATA_DIR
+              value: /config
+            - name: HAMSTRA_TV_ROOT
+              value: {{ .Values.config.tvRoot | quote }}
+            - name: HAMSTRA_MOVIES_KIDS_ROOT
+              value: {{ .Values.config.moviesKidsRoot | quote }}
+            - name: HAMSTRA_MOVIES_ADULTS_ROOT
+              value: {{ .Values.config.moviesAdultsRoot | quote }}
+            - name: HAMSTRA_MUSIC_ROOT
+              value: {{ .Values.config.musicRoot | quote }}
+            - name: HAMSTRA_DOWNLOADS_DIR
+              value: {{ .Values.config.downloadsDir | quote }}
+            - name: HAMSTRA_IMPORT_MODE
+              value: {{ .Values.config.importMode | quote }}
+            - name: HAMSTRA_MIN_FREE_GB
+              value: {{ .Values.config.minFreeGb | quote }}
+            - name: HAMSTRA_SECURE_COOKIES
+              value: {{ include "hamstra.secureCookies" . | quote }}
+            {{- if .Values.config.timezone }}
+            - name: TZ
+              value: {{ .Values.config.timezone | quote }}
+            {{- end }}
+            - name: HAMSTRA_TMDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hamstra.secretName" . }}
+                  key: {{ .Values.secrets.keys.tmdbApiKey }}
+                  optional: true
+            - name: HAMSTRA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hamstra.secretName" . }}
+                  key: {{ .Values.secrets.keys.apiKey }}
+                  optional: true
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36            # up to 3 minutes for the first start (database migration)
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: {{ .Values.media.mountPath }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- if .Values.vpn.enabled }}
+        - name: vpn
+          image: {{ .Values.vpn.image | quote }}
+          securityContext:
+            capabilities:
+              add: [NET_ADMIN]
+          env:
+            {{- range $k, $v := .Values.vpn.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if .Values.vpn.firewallInputPorts }}
+            - name: FIREWALL_INPUT_PORTS
+              value: {{ .Values.vpn.firewallInputPorts | quote }}
+            {{- end }}
+          {{- if .Values.vpn.existingSecret }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.vpn.existingSecret }}
+          {{- end }}
+          volumeMounts:
+            - name: tun
+              mountPath: /dev/net/tun
+        {{- end }}
+      volumes:
+        - name: config
+          {{- if .Values.persistence.config.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "hamstra.configClaim" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: media
+          {{- if .Values.media.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.media.existingClaim }}
+            readOnly: {{ .Values.media.readOnly }}
+          {{- else if .Values.media.hostPath }}
+          hostPath:
+            path: {{ .Values.media.hostPath | quote }}
+            type: Directory
+          {{- else if .Values.media.nfs.server }}
+          nfs:
+            server: {{ .Values.media.nfs.server | quote }}
+            path: {{ .Values.media.nfs.path | quote }}
+            readOnly: {{ .Values.media.readOnly }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.vpn.enabled }}
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

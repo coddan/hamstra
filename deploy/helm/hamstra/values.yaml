@@ -1,0 +1,115 @@
+# Hamstra keeps its state in one SQLite database and runs one torrent session, so it must run as a SINGLE replica.
+# The chart therefore has no replicaCount and always uses the Recreate update strategy.
+
+image:
+  repository: ghcr.io/coddan/hamstra
+  tag: ""                       # defaults to the chart appVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# ---- Settings (become HAMSTRA_* environment variables). Everything else is configured in the web UI. ----
+config:
+  tvRoot: /media/tv
+  moviesKidsRoot: /media/movies/kids
+  moviesAdultsRoot: /media/movies/adults
+  musicRoot: /media/music
+  downloadsDir: /media/downloads     # keep this on the same volume as the library
+  importMode: hardlink               # hardlink | move | copy (falls back to a verified copy where hardlinks are impossible)
+  minFreeGb: 20
+  secureCookies: null                # null = true automatically when ingress.tls is set
+  timezone: ""
+
+# ---- Secrets ----
+secrets:
+  existingSecret: ""                 # a Secret with the keys below; leave empty to create one from the values
+  tmdbApiKey: ""                     # TMDB "API Read Access Token" (free): needed for movie search
+  apiKey: ""                         # optional: lets scripts call the API with an X-Api-Key header
+  keys:                              # key names inside the Secret
+    tmdbApiKey: tmdbApiKey
+    apiKey: apiKey
+
+# ---- Storage ----
+persistence:
+  config:                            # database, backups, torrent state. Do not lose this one.
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    annotations: {}
+
+# The media volume is mounted ONCE at media.mountPath, so downloads and library share a filesystem.
+# Pick one source. With none set an emptyDir is used (everything is lost on restart: for testing only).
+media:
+  mountPath: /media
+  existingClaim: ""                  # e.g. a PVC from an SMB/NFS CSI driver
+  hostPath: ""
+  nfs:
+    server: ""
+    path: ""
+  readOnly: false
+
+# ---- Networking ----
+service:
+  type: ClusterIP
+  port: 8000
+  annotations: {}
+
+torrent:                             # the BitTorrent listen port; expose it for better speeds (not needed for the web UI)
+  port: 6881
+  service:
+    enabled: false
+    type: NodePort                   # NodePort or LoadBalancer
+    nodePort: null                   # fixed node port (30000-32767), used for both TCP and UDP
+    externalTrafficPolicy: ""
+    annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # nginx.ingress.kubernetes.io/proxy-body-size: 10m     # .torrent uploads
+  hosts:
+    - host: hamstra.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+    # - secretName: hamstra-tls
+    #   hosts: [hamstra.example.com]
+
+# ---- Optional VPN sidecar (gluetun). EXPERIMENTAL / untested. All containers of a pod share one network, so the
+#      whole pod (web UI replies included) goes through the VPN. In the app set Settings -> Downloads -> VPN interface
+#      to tun0 (or wg0) to get the kill switch.
+vpn:
+  enabled: false
+  image: qmcgaw/gluetun:v3
+  existingSecret: ""                 # a Secret whose keys are passed to gluetun as environment variables (provider, keys...)
+  env: {}                            # e.g. VPN_SERVICE_PROVIDER: mullvad, VPN_TYPE: wireguard
+  firewallInputPorts: ""             # ports gluetun lets in from the cluster, e.g. "8000"
+
+# ---- Pod details ----
+podAnnotations: {}
+podLabels: {}
+podSecurityContext: {}               # e.g. {runAsUser: 1000, runAsGroup: 1000, fsGroup: 1000}; the files on your media must be writable by this user
+securityContext: {}
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

@@ -1,0 +1,42 @@
+# Copy to docker-compose.yml, fill in the values marked CHANGE, then: docker compose up -d --build
+services:
+  hamstra:
+    build: .
+    container_name: hamstra
+    restart: unless-stopped            # also lets the "Restart app" button work
+    ports:
+      - "8000:8000"                    # web UI + API
+      - "6881:6881"                    # torrent port (TCP and UDP): forward it on your router for better speeds
+      - "6881:6881/udp"
+    environment:
+      HAMSTRA_TMDB_API_KEY: "CHANGE"                     # TMDB "API Read Access Token" (free, themoviedb.org/settings/api)
+      HAMSTRA_API_KEY: "CHANGE-to-a-long-random-string"  # lets scripts call the API; the web UI uses accounts
+      # Folders as the container sees them. They can be changed later under Settings -> Library -> Media folders.
+      HAMSTRA_TV_ROOT: /media/tv
+      HAMSTRA_MOVIES_KIDS_ROOT: /media/movies/kids
+      HAMSTRA_MOVIES_ADULTS_ROOT: /media/movies/adults
+      HAMSTRA_MUSIC_ROOT: /media/music
+      HAMSTRA_DOWNLOADS_DIR: /media/downloads                  # everything downloads here first
+      HAMSTRA_IMPORT_MODE: hardlink                      # falls back to a size-checked copy where hardlinks are impossible (network shares)
+      # HAMSTRA_SECURE_COOKIES: "true"                   # set when you serve the app over HTTPS (see README)
+    volumes:
+      - ./config:/config               # database, backups, torrent state: keep this safe
+      - /mnt/media:/media              # your media; downloads and library should be on the same share
+
+  # --- Optional: send all torrent traffic through a VPN (gluetun) -------------------------------------------
+  # 1. Uncomment this service and set your provider details (see github.com/qdm12/gluetun-wiki).
+  # 2. In the hamstra service above: remove its "ports:" section, add   network_mode: "service:gluetun"
+  #    and   depends_on: [gluetun]   and publish 8000 and 6881 on the gluetun service instead.
+  # 3. In the app: Settings -> Downloads & seeding -> "VPN interface" = tun0 (or wg0 for WireGuard).
+  #    Nothing is then grabbed, and active torrents pause, whenever that interface is down (kill switch).
+  # Note: private trackers may dislike VPN addresses; check their rules first.
+  #
+  # gluetun:
+  #   image: qmcgaw/gluetun
+  #   cap_add: [NET_ADMIN]
+  #   devices: ["/dev/net/tun:/dev/net/tun"]
+  #   environment:
+  #     VPN_SERVICE_PROVIDER: CHANGE
+  #     VPN_TYPE: wireguard
+  #     WIREGUARD_PRIVATE_KEY: CHANGE
+  #   ports: ["8000:8000", "6881:6881", "6881:6881/udp"]

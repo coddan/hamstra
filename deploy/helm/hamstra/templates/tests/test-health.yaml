@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "hamstra.fullname" . }}-test"
+  labels:
+    {{- include "hamstra.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  containers:
+    - name: health
+      image: busybox:1.36
+      command: ["wget", "-qO-", "http://{{ include "hamstra.fullname" . }}:{{ .Values.service.port }}/api/health"]

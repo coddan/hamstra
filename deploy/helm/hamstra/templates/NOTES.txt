@@ -1,0 +1,43 @@
+Hamstra {{ .Chart.AppVersion }} is being installed as "{{ include "hamstra.fullname" . }}".
+
+1. Open the web UI:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+     http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else if eq .Values.service.type "NodePort" }}
+     http://<node-address>:$(kubectl get svc {{ include "hamstra.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.ports[0].nodePort}')
+{{- else if eq .Values.service.type "LoadBalancer" }}
+     the external address of: kubectl get svc {{ include "hamstra.fullname" . }} -n {{ .Release.Namespace }}
+{{- else }}
+     kubectl port-forward svc/{{ include "hamstra.fullname" . }} 8000:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+     then http://localhost:8000
+{{- end }}
+
+2. CREATE THE ADMIN ACCOUNT RIGHT AWAY. Until the first account exists the app is open to anyone who can reach it.
+
+{{- if and (not .Values.media.existingClaim) (not .Values.media.hostPath) (not .Values.media.nfs.server) }}
+
+WARNING: no media volume is configured (media.existingClaim / media.hostPath / media.nfs).
+         An emptyDir is used, so downloads and the library are LOST when the pod restarts. This is only fine for a test.
+{{- end }}
+{{- if not .Values.persistence.config.enabled }}
+
+WARNING: persistence.config.enabled is false, so the database is lost when the pod restarts.
+{{- end }}
+{{- if and (not .Values.secrets.existingSecret) (not .Values.secrets.tmdbApiKey) }}
+
+NOTE: no TMDB key was given (secrets.tmdbApiKey), so movie search will not work until you add one.
+{{- end }}
+{{- if not .Values.torrent.service.enabled }}
+
+Torrent port: not exposed (torrent.service.enabled=false). Downloads still work, but incoming connections are blocked,
+              which lowers speeds. Enable it and forward the port if you want better seeding.
+{{- end }}
+{{- if .Values.vpn.enabled }}
+
+VPN sidecar is enabled (experimental). In the app set Settings -> Downloads & seeding -> VPN interface (tun0 or wg0).
+{{- end }}
+
+Config and database live in the PVC "{{ include "hamstra.configClaim" . }}"; it is kept when you uninstall the release.
+Check the install with: helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

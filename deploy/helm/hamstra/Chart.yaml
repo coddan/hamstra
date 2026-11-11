@@ -1,0 +1,11 @@
+apiVersion: v2
+name: hamstra
+description: Self-hosted movie, series and music manager with a built-in torrent client and indexer manager
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.25.0-0"
+home: https://github.com/coddan/hamstra
+sources:
+  - https://github.com/coddan/hamstra
+keywords: [media, torrent, movies, series, music, plex]

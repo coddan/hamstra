@@ -1,0 +1,20 @@
+from playwright.sync_api import sync_playwright
+BASE, out, errors = "http://localhost:8000/", "/shots/", []
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    pg = b.new_page(viewport={"width": 1400, "height": 900})
+    pg.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
+    pg.on("response", lambda r: errors.append(f"HTTP {r.status} {r.url}") if r.status >= 400 else None)
+    nav = lambda n: (pg.get_by_role("button", name=n, exact=True).first.click(), pg.wait_for_timeout(1500))
+    pg.goto(BASE); pg.wait_for_timeout(3500); pg.screenshot(path=out + "A_dashboard.png", full_page=True)
+    nav("music"); pg.wait_for_timeout(1500); pg.screenshot(path=out + "B_music_empty.png")
+    pg.get_by_role("button", name="+ Add music").click(); pg.wait_for_timeout(800)
+    pg.get_by_placeholder("e.g. pink floyd dark side of the moon").fill("amon amarth deceiver of the gods")
+    pg.get_by_role("button", name="Search", exact=True).click(); pg.wait_for_timeout(3500); pg.screenshot(path=out + "C_add_music.png")
+    pg.locator(".modal .close").first.click(); pg.wait_for_timeout(400)
+    nav("others"); pg.wait_for_timeout(1500); pg.screenshot(path=out + "D_others.png")
+    pg.get_by_role("button", name="Unmatched folders", exact=False).first.click(); pg.wait_for_timeout(3000); pg.screenshot(path=out + "E_others_unmatched.png")
+    nav("settings"); pg.get_by_role("button", name="Indexers", exact=True).click(); pg.wait_for_timeout(1500); pg.screenshot(path=out + "F_settings_indexers.png", full_page=True)
+    pg.get_by_role("button", name="Music quality").click(); pg.wait_for_timeout(1500); pg.screenshot(path=out + "G_music_quality.png", full_page=True)
+    b.close()
+print("ERRORS:", errors or "none")

@@ -218,13 +218,14 @@ def _place_and_finish(db: Session, item: QueueItem, videos: list[Path], scratch:
         video = videos[0]
         folder = Path(m.path or "")
         dest = folder / f"{naming.folder_name(m.title, m.year)}{video.suffix.lower()}"
-        if protect and (m.has_file or dest.exists()):
+        if protect and (m.has_file or dest.exists() or (m.path and folder.is_dir() and find_videos(folder))):
             kept += 1
         else:
             upgraded = m.has_file
             used.add(place(video, dest, mode, overwrite=not protect))
             subs += copy_subtitles(sub_root, video, dest, len(videos) > 1)
-            _remove_old_movie_files(folder, dest)
+            if not protect:
+                _remove_old_movie_files(folder, dest)
             m.has_file, m.file_resolution = True, quality
     else:
         s = db.get(Series, item.series_id)

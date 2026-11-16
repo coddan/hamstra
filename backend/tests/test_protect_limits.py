@@ -91,3 +91,26 @@ def test_wanted_lists_only_what_is_missing_and_toggles_work():
         assert r.json()["changed"] == 4
         row = {r["title"]: r for r in c.get("/api/v1/wanted").json()["series"]}
         assert row["Wanted Show"]["missing"] == 0 and row["Wanted Show"]["upcoming"] == 0
+
+
+def test_import_never_touches_an_unmatched_video_already_in_the_movie_folder(tmp_path: Path):
+    from app.models import Movie, QueueItem
+
+    folder = tmp_path / "lib" / "Old Film (1999)"
+    folder.mkdir(parents=True)
+    mine = folder / "my own rip.mkv"
+    mine.write_bytes(b"precious")
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "Old.Film.1999.1080p.mkv").write_bytes(b"new")
+    with SessionLocal() as db:
+        m = Movie(tmdb_id=424242, title="Old Film", year=1999, path=str(folder), has_file=False)
+        db.add(m)
+        db.flush()
+        item = QueueItem(title="Old.Film.1999.1080p", kind="movie", movie_id=m.id, save_path=str(dl))
+        db.add(item)
+        db.commit()
+        assert importer.import_item(db, item, str(dl / "Old.Film.1999.1080p.mkv"))
+        assert item.status == "seeding"
+        assert mine.read_bytes() == b"precious"
+        assert [p.name for p in folder.iterdir()] == ["my own rip.mkv"]

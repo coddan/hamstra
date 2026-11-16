@@ -45,8 +45,9 @@
 
 {#each list as i (i.id)}
   <div class="row" class:disabled={!i.enabled}>
-    <label class="sw" title={i.enabled ? 'Enabled' : 'Disabled'}>
+    <label class="sw" title="Switch this indexer on or off. Off = never searched, but its settings are kept.">
       <input type="checkbox" checked={i.enabled} onchange={(e) => patch(i, { enabled: e.currentTarget.checked })} />
+      <span>{i.enabled ? 'On' : 'Off'}</span>
     </label>
     <label class="prio" title="1 = searched first and preferred on ties, 50 = last">Priority
       <input type="number" min="1" max="50" value={i.priority}
@@ -79,7 +80,9 @@
 <style>
   .row { display: flex; gap: .5rem; align-items: center; background: #1c2128; padding: .5rem; margin-bottom: .4rem; border-radius: 6px; }
   .grow { flex: 1; word-break: break-all; }
-  .disabled { opacity: .5; }
+  .disabled .grow { opacity: .5; }
+  .sw { display: flex; align-items: center; gap: .3rem; font-size: .8rem; min-width: 3.4rem; cursor: pointer; }
+  .sw span { font-weight: 600; color: #7ee2a0; } .disabled .sw span { color: #999; }
   .prio { display: flex; align-items: center; gap: .3rem; font-size: .8rem; } .prio input { width: 3.4rem; padding: .2rem; }
   form { display: flex; flex-direction: column; gap: .4rem; max-width: 34rem; }
   input, select { padding: .35rem; }

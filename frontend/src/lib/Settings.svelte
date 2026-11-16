@@ -118,7 +118,7 @@
   <button onclick={testSubs}>Save &amp; test login</button>
   <button onclick={runSubs}>Run now</button>
 {/if}
-{#if tab === 'indexers'}<p>Where releases are searched. Lower priority numbers are searched and preferred first; switch one off to skip it.</p><Indexers />{/if}
+{#if tab === 'indexers'}<p>Where releases are searched. Use the On/Off switch to enable or disable an indexer without deleting it. Lower priority numbers are searched and preferred first.</p><Indexers />{/if}
 
 {#if tab === 'library'}
 <MediaFolders />

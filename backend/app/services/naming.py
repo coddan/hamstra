@@ -2,6 +2,8 @@ import re
 import unicodedata
 
 VIDEO_EXT = {".mkv", ".mp4", ".avi", ".m4v", ".mov", ".ts", ".wmv"}
+# Formats that count as "a copy is already in the library" when scanning (not imported from downloads)
+SCAN_VIDEO_EXT = VIDEO_EXT | {".m2ts", ".mpg", ".mpeg", ".divx", ".iso", ".vob"}
 _ILLEGAL = re.compile(r'[<>:"/\\|?*]')
 
 

@@ -21,11 +21,11 @@ _COUNTRY = re.compile(r"\s*\((?:US|UK|AU|CA|NZ)\)$", re.I)
 
 def _videos(folder: Path):
     if folder.is_file():
-        if folder.suffix.lower() in naming.VIDEO_EXT:
+        if folder.suffix.lower() in naming.SCAN_VIDEO_EXT:
             yield folder
         return
     for p in folder.rglob("*"):
-        if p.is_file() and p.suffix.lower() in naming.VIDEO_EXT and not any(
+        if p.is_file() and p.suffix.lower() in naming.SCAN_VIDEO_EXT and not any(
                 part.startswith(IGNORED) for part in p.relative_to(folder).parts):
             yield p
 

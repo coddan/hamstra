@@ -114,3 +114,20 @@ def test_import_never_touches_an_unmatched_video_already_in_the_movie_folder(tmp
         assert item.status == "seeding"
         assert mine.read_bytes() == b"precious"
         assert [p.name for p in folder.iterdir()] == ["my own rip.mkv"]
+
+
+def test_scan_counts_dvd_bluray_and_older_formats_as_existing_files(tmp_path: Path):
+    from app.services import scan
+
+    folder = tmp_path / "Film (2001)"
+    folder.mkdir()
+    for n in ("a.m2ts", "b.divx", "c.mpg", "d.iso", "e.VOB"):
+        (folder / n).write_bytes(b"x")
+    (folder / "f.sfv").write_bytes(b"x")
+    (folder / "g.idx").write_bytes(b"x")
+    assert sorted(p.name for p in scan._videos(folder)) == ["a.m2ts", "b.divx", "c.mpg", "d.iso", "e.VOB"]
+    only_subs = tmp_path / "Other (2002)"
+    only_subs.mkdir()
+    (only_subs / "x.idx").write_bytes(b"x")
+    (only_subs / "x.sub").write_bytes(b"x")
+    assert list(scan._videos(only_subs)) == []

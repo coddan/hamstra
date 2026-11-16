@@ -82,7 +82,7 @@ def match(body: MatchIn, db: Session = Depends(get_db)):
         d = tmdb.movie_details(body.tmdb_id)
         movie = Movie(tmdb_id=d["tmdb_id"], title=d["title"], year=d["year"], overview=d["overview"],
                       poster_url=d["poster_url"], certification=d["certification"], imdb_id=d.get("imdb_id"),
-                      root_folder_id=root.id, path=str(entry))
+                      root_folder_id=root.id, path=str(entry), monitored=False)  # already in the library: opt in per movie
         db.add(movie)
         db.commit()
     else:

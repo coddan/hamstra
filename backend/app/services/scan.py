@@ -312,6 +312,7 @@ def import_unmatched(db: Session, progress: dict | None = None, guess: bool = Fa
                         tmdb_id=d["tmdb_id"], title=d["title"], year=d["year"], overview=d["overview"],
                         poster_url=d["poster_url"], certification=d["certification"], imdb_id=d.get("imdb_id"),
                         release_date=None, root_folder_id=root.id if root else None, path=str(entry),
+                        monitored=False,  # already in the library: opt in per movie
                     ))
                     if score is not None:
                         guessed[str(entry)] = {"kind": "movie", "id": hit["tmdb_id"], "score": round(score, 2)}

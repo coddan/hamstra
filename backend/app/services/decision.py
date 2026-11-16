@@ -7,6 +7,13 @@ from .parser import Release, parse
 DEFAULT_SOURCES = ["remux", "bluray", "web-dl", "webrip", "hdtv", "dvd"]
 
 
+def meets_cutoff(has_file: bool, resolution: int | None, cutoff: int) -> bool:
+    """A file on disk whose resolution is unknown (e.g. not in its name) counts as good enough, so it is never re-downloaded."""
+    if not has_file:
+        return False
+    return not resolution or resolution >= cutoff
+
+
 @dataclass
 class Profile:
     allowed: list[int] = field(default_factory=lambda: [720, 1080, 2160])
@@ -105,10 +112,9 @@ def evaluate(r: Result, want: Want, profile: Profile, blocked: set[str] = frozen
     if want.has_file and not why and not profile.upgrade_allowed:
         why.append("upgrades disabled")
     if want.has_file and not why:
-        cur = want.current_resolution or 0
-        if cur >= profile.cutoff:
+        if meets_cutoff(True, want.current_resolution, profile.cutoff):
             why.append("cutoff already met")
-        elif (rel.resolution or 0) <= cur:
+        elif (rel.resolution or 0) <= (want.current_resolution or 0):
             why.append("not an upgrade")
 
     score = 0.0

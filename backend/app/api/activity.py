@@ -247,7 +247,7 @@ def search_season_pack(sid: int, season: int, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(404)
     prof = grab.profile_for(db, s.quality_profile_id)
-    eps = [e for e in s.episodes if e.season == season and not (e.has_file and (e.file_resolution or 0) >= prof.cutoff)]
+    eps = [e for e in s.episodes if e.season == season and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff)]
     if not eps:
         return {"grabbed": None, "detail": "nothing missing in this season"}
     item = grab.search_season(db, s, season, eps)

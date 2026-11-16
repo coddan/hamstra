@@ -1,5 +1,5 @@
 from app.indexers.torznab import Result
-from app.services.decision import Profile, Want, best, evaluate
+from app.services.decision import Profile, Want, best, evaluate, meets_cutoff
 
 P = Profile()
 MOVIE = Want("movie", "The Matrix", 1999)
@@ -40,6 +40,14 @@ def test_upgrade_rules():
     r1080 = R("The.Matrix.1999.1080p.BluRay.x264-G")
     assert evaluate(r1080, have720, P).accepted
     assert "cutoff already met" in evaluate(r1080, have1080, P).reasons
+
+
+def test_file_with_unknown_resolution_is_not_upgraded():
+    unknown = Want("movie", "The Matrix", 1999, current_resolution=None, has_file=True)
+    assert "cutoff already met" in evaluate(R("The.Matrix.1999.1080p.BluRay.x264-G"), unknown, P).reasons
+    assert meets_cutoff(True, None, 1080)
+    assert not meets_cutoff(False, None, 1080)
+    assert not meets_cutoff(True, 720, 1080)
 
 
 def test_season_packs():

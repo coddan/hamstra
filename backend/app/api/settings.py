@@ -38,7 +38,7 @@ SECTIONS = {
     "subtitles": {"enabled": False, "api_key": "", "username": "", "password": "", "languages": "sv,en", "limit_per_run": 5},
     "trakt": {"client_id": ""},
     "automation": {"enabled": False, "dry_run": True, "rss": True, "search": True},
-    "downloads": {"stall_hours": 6.0, "min_free_gb": 20.0, "max_download_kbps": 0, "max_upload_kbps": 0, "protect_existing": True},
+    "downloads": {"stall_hours": 6.0, "min_free_gb": 20.0, "max_download_kbps": 24414, "max_upload_kbps": 6104, "protect_existing": True},
     "seeding": {"ratio": 1.0, "hours": 72.0, "mode": "either"},
     "plex": {"url": "", "token": "", "section_ids": []},
     "notifications": {"webhook_url": ""},

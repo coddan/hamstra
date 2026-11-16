@@ -43,7 +43,7 @@ def test_speed_limits_are_applied_once_per_change():
     eng = FakeEngine()
     with SessionLocal() as db:
         seeding.apply_limits(db, eng)
-        assert eng.calls == [(0, 0)]
+        assert eng.calls == [(24414 * 1024, 6104 * 1024)]
         seeding.apply_limits(db, eng)
         assert len(eng.calls) == 1
         db.merge(Setting(key="downloads", value=json.dumps({"max_download_kbps": 500, "max_upload_kbps": 100})))

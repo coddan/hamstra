@@ -32,7 +32,7 @@ def satisfied(rules: dict, ratio: float, seeding_seconds: int) -> bool:
 from ..config import settings
 
 DL_DEFAULTS = {"stall_hours": 6.0, "min_free_gb": settings.min_free_gb,  # 0 disables each check
-               "max_download_kbps": 0, "max_upload_kbps": 0,  # KiB/s for all torrents together, 0 = unlimited
+               "max_download_kbps": 24414, "max_upload_kbps": 6104,  # KiB/s for all torrents together (200 / 50 Mbit), 0 = unlimited
                "protect_existing": True}  # never replace or delete a file already in the library
 
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { api, apiUpload } from './api'
   import { bytes } from './fmt'
   import Unmatched from './Unmatched.svelte'
@@ -9,6 +10,7 @@
 
   let tab = $state<'dl' | 'unmatched'>(nav.othersTab)
   $effect(() => { nav.othersTab = tab })
+  $effect(() => { const t = nav.othersTab; if (t !== untrack(() => tab)) tab = t })
   let unmatchedCount = $state<number | null>(null)
   $effect(() => { api<{ items: unknown[] }>('/library/unmatched').then((r) => (unmatchedCount = r.items.length)).catch(() => {}) })
 

@@ -11,7 +11,7 @@
   import Monitoring from './lib/Monitoring.svelte'
   import Login from './lib/Login.svelte'
   import { auth, refreshAuth } from './lib/auth.svelte'
-  import { nav } from './lib/nav.svelte'
+  import { nav, hashFor, syncFromHash } from './lib/nav.svelte'
 
   type Status = { version: string; roots: Record<string, string>; tmdb_configured: boolean }
   type Root = { id: number; path: string; kind: string; exists: boolean }
@@ -45,6 +45,17 @@
 
   refreshAuth()
 
+  // keep the address bar in step with the page (refresh, bookmark and the back button all land in the same place)
+  $effect(() => {
+    const h = hashFor()
+    if (location.hash !== h) history.pushState(null, '', h)
+  })
+  // a page this user may not see (e.g. a bookmarked admin page) falls back to the dashboard
+  $effect(() => {
+    if (auth.loading || auth.needsLogin) return
+    if (nav.page !== 'dashboard' && nav.page !== 'requests' && !pages.includes(nav.page)) nav.page = 'dashboard'
+  })
+
   $effect(() => {
     if (auth.loading || auth.needsLogin) return
     Promise.all([api<Status>('/system/status'), api<Root[]>('/system/rootfolders'), api<typeof vpn>('/system/vpn')])
@@ -52,6 +63,8 @@
       .catch((e) => (error = e.message))
   })
 </script>
+
+<svelte:window onpopstate={syncFromHash} />
 
 {#if auth.loading}
   <p style="padding:2rem">Loading…</p>

@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { api, type MovieRules } from './api'
+  import { nav } from './nav.svelte'
   import Users from './Users.svelte'
   import Profiles from './Profiles.svelte'
   import MusicProfile from './MusicProfile.svelte'
@@ -11,7 +13,10 @@
   let certs = $state('')
   let genres = $state('')
   let msg = $state('')
-  let tab = $state(auth.user && !auth.user.is_admin ? 'users' : 'quality')
+  let tab = $state(nav.settingsTab && [ 'quality', 'music', 'subtitles', 'indexers', 'downloads', 'connections', 'library', 'users' ].includes(nav.settingsTab)
+    ? nav.settingsTab : auth.user && !auth.user.is_admin ? 'users' : 'quality')
+  $effect(() => { nav.settingsTab = tab })
+  $effect(() => { const t = nav.settingsTab; if (t && t !== untrack(() => tab)) tab = t })
   const tabs = [['quality', 'Quality profiles'], ['music', 'Music quality'], ['subtitles', 'Subtitles'], ['indexers', 'Indexers'], ['downloads', 'Downloads & seeding'], ['connections', 'Plex & notifications'], ['library', 'Library'], ['users', 'Users']]
 
   const split = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean)

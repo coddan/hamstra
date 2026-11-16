@@ -31,12 +31,19 @@ def parse_folder(name: str) -> tuple[str, int | None]:
 
 
 _EP = re.compile(r"[Ss](\d{1,2})[ ._-]*[Ee](\d{1,3})(?:[ ._-]*[Ee-](\d{1,3}))?|(\d{1,2})x(\d{2,3})")
+_EP_WORDS = re.compile(r"season[ ._-]*(\d{1,2})[ ._-]*episode[ ._-]*(\d{1,3})(?!\d)"
+                       r"(?:[ ._-]*(?:&|\+|and|-)[ ._-]*(?:episode[ ._-]*)?(\d{1,3})(?!\d))?", re.I)  # "Season 1 Episode 17", "... Episode 01 & 02"
 
 
 def parse_episode(filename: str) -> list[tuple[int, int]]:
     m = _EP.search(filename)
     if not m:
-        return []
+        w = _EP_WORDS.search(filename)
+        if not w:
+            return []
+        s, first = int(w.group(1)), int(w.group(2))
+        last = int(w.group(3)) if w.group(3) else first
+        return [(s, e) for e in range(first, max(first, last) + 1)]
     if m.group(4):
         return [(int(m.group(4)), int(m.group(5)))]
     s, first = int(m.group(1)), int(m.group(2))

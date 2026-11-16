@@ -8,6 +8,11 @@ def test_parse_episode():
     assert parse_episode("Show.S01E02-E04.mkv") == [(1, 2), (1, 3), (1, 4)]
     assert parse_episode("Show 2x05.mkv") == [(2, 5)]
     assert parse_episode("random.mkv") == []
+    assert parse_episode("House MD Season 1 Episode 17 - Role Model.avi") == [(1, 17)]
+    assert parse_episode("Star Trek Enterprise Season 01 Episode 01 & 02 - Broken Bow TSV.mkv") == [(1, 1), (1, 2)]
+    assert parse_episode("Star Trek Enterprise Season 01 Episode 03 - Fight or Flight TSV.mkv") == [(1, 3)]
+    assert parse_episode("Show Season 2 Episode 5 - 2002 Special.avi") == [(2, 5)]
+    assert parse_episode("House MD Season 1 Extra 01 - The Concept.avi") == []
 
 
 def test_parse_folder_and_normalize():

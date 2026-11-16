@@ -29,15 +29,16 @@ def default_profile(db: Session) -> QualityProfile | None:
 
 
 def profile_for(db: Session, profile_id: int | None) -> decision.Profile:
+    protect = seeding.download_rules(db)["protect_existing"]
     q = (db.get(QualityProfile, profile_id) if profile_id else None) or default_profile(db)
     if not q:
-        return decision.Profile()
+        return decision.Profile(upgrade_allowed=not protect)
     return decision.Profile(
         allowed=[int(x) for x in q.allowed.replace("p", "").split(",") if x], cutoff=q.cutoff,
         min_seeders=q.min_seeders, max_size_gb_movie=q.max_size_gb_movie,
         max_size_mb_episode=q.max_size_mb_episode, prefer_codec=q.prefer_codec,
         sources=_csv(q.sources), source_order=_csv(q.source_order), prefer_words=_csv(q.prefer_words),
-        reject_words=_csv(q.reject_words), prefer_hdr=q.prefer_hdr, upgrade_allowed=q.upgrade_allowed,
+        reject_words=_csv(q.reject_words), prefer_hdr=q.prefer_hdr, upgrade_allowed=q.upgrade_allowed and not protect,
     )
 
 
@@ -268,7 +269,7 @@ def search_wanted(db: Session, limit: int = 25) -> dict:
     today = date.today()
     for m in db.query(Movie).filter_by(monitored=True).all():
         prof = profile_for(db, m.quality_profile_id)
-        if decision.meets_cutoff(m.has_file, m.file_resolution, prof.cutoff):
+        if decision.meets_cutoff(m.has_file, m.file_resolution, prof.cutoff, prof.upgrade_allowed):
             continue
         if done["searched"] >= limit:
             return done
@@ -302,7 +303,7 @@ def search_series(db: Session, s: Series, done: dict, limit: int = 25) -> bool:
     today = date.today()
     prof = profile_for(db, s.quality_profile_id)
     missing = [e for e in s.episodes if e.monitored and e.air_date and e.air_date <= today
-               and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff) and not in_queue(db, episode_id=e.id)]
+               and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff, prof.upgrade_allowed) and not in_queue(db, episode_id=e.id)]
     by_season: dict[int, list[Episode]] = {}
     for e in missing:
         by_season.setdefault(e.season, []).append(e)

@@ -77,6 +77,8 @@
           if (kidsAdults !== 'all' && m.root_kind !== `movies_${kidsAdults}`) return false
           if (status === 'disk') return m.has_file
           if (status === 'missing') return !m.has_file
+          if (status === 'monitored') return m.monitored
+          if (status === 'unmonitored') return !m.monitored
         } else {
           const s = i as Series
           if (status === 'monitored') return s.monitored
@@ -104,8 +106,16 @@
       return `${m.root_kind?.replace('movies_', '') ?? ''} · ${m.has_file ? 'on disk' : 'missing'}`
     }
     const s = i as Series
-    return `${s.file_count}/${s.episode_count} episodes${s.monitored ? '' : ' · unmonitored'}`
+    return `${s.file_count}/${s.episode_count} episodes`
   }
+
+  async function setMonitored(id: number, value: boolean) {
+    const item = items.find((i) => i.id === id)
+    if (item) item.monitored = value
+    try { await api(`/${kind}/${id}`, 'PATCH', { monitored: value }) } catch (e: any) { error = e.message; await load() }
+  }
+
+  const monitoredCount = $derived(items.filter((i) => i.monitored).length)
 
   function jump(l: string) {
     document.getElementById(`letter-${l === '#' ? 'num' : l}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -130,14 +140,14 @@
     <input class="search" bind:value={filter} placeholder={`Filter ${kind}…`} />
     {#if kind === 'movies'}
       <select bind:value={kidsAdults}><option value="all">Kids + adults</option><option value="kids">Kids</option><option value="adults">Adults</option></select>
-      <select bind:value={status}><option value="all">All</option><option value="disk">On disk</option><option value="missing">Missing</option></select>
+      <select bind:value={status}><option value="all">All</option><option value="monitored">Monitored</option><option value="unmonitored">Not monitored</option><option value="disk">On disk</option><option value="missing">Missing</option></select>
     {:else}
       <select bind:value={status}>
         <option value="all">All</option><option value="monitored">Monitored</option>
-        <option value="unmonitored">Unmonitored</option><option value="incomplete">Incomplete</option>
+        <option value="unmonitored">Not monitored</option><option value="incomplete">Incomplete</option>
       </select>
     {/if}
-    <span class="count">{filtered.length}{filtered.length !== items.length ? ` / ${items.length}` : ''}</span>
+    <span class="count">{filtered.length}{filtered.length !== items.length ? ` / ${items.length}` : ''} · 👁 {monitoredCount} monitored</span>
     {#if admin}<button class="add alt" onclick={() => (addingTorrent = true)}>+ Torrent / magnet</button>{/if}
     <button class="add2" onclick={() => (adding = true)}>{admin ? '+ Add new' : '+ Request'}</button>
   </div>
@@ -152,7 +162,7 @@
     {#each sections as [letter, list] (letter)}
       <section id={`letter-${letter === '#' ? 'num' : letter}`}>
         <h2>{letter}</h2>
-        <Grid items={list.map((i) => ({ ...i, badge: badge(i) }))} onremove={admin ? remove : undefined}
+        <Grid items={list.map((i) => ({ ...i, badge: badge(i) }))} onremove={admin ? remove : undefined} onmonitor={admin ? setMonitored : undefined}
           onopen={kind === 'series' ? (id) => (openSeries = id) : (id) => (detailFor = id)}
           actions={kind === 'series' && admin ? [{ label: '🔍 Find releases', run: (id) => (openSeries = id), primary: true }] : kind === 'movies' && admin ? [
             { label: 'Search (auto)', run: autoSearch },

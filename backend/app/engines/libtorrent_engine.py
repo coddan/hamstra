@@ -22,6 +22,11 @@ class LibtorrentEngine:
         self.lock = threading.Lock()
         self._load_resume()
 
+    def set_limits(self, down_bps: int, up_bps: int) -> None:
+        """Bytes per second for the whole session; 0 means unlimited."""
+        with self.lock:
+            self.ses.apply_settings({"download_rate_limit": max(0, int(down_bps)), "upload_rate_limit": max(0, int(up_bps))})
+
     def _load_resume(self):
         for f in self.state_dir.glob("*.resume"):
             try:

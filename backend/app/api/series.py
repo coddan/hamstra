@@ -125,6 +125,34 @@ def patch_series(series_id: int, body: SeriesPatch, db: Session = Depends(get_db
     return series_out(s)
 
 
+class MonitorBody(BaseModel):
+    monitored: bool
+
+
+@router.patch("/{series_id}/episodes/{episode_id}")
+def patch_episode(series_id: int, episode_id: int, body: MonitorBody, db: Session = Depends(get_db)):
+    e = db.get(Episode, episode_id)
+    if not e or e.series_id != series_id:
+        raise HTTPException(404)
+    e.monitored = body.monitored
+    db.commit()
+    return {"id": e.id, "monitored": e.monitored}
+
+
+@router.patch("/{series_id}/seasons/{season}")
+def patch_season(series_id: int, season: int, body: MonitorBody, db: Session = Depends(get_db)):
+    s = db.get(Series, series_id)
+    if not s:
+        raise HTTPException(404)
+    changed = 0
+    for e in s.episodes:
+        if e.season == season and e.monitored != body.monitored:
+            e.monitored = body.monitored
+            changed += 1
+    db.commit()
+    return {"season": season, "monitored": body.monitored, "changed": changed}
+
+
 @router.delete("/{series_id}", status_code=204)
 def delete_series(series_id: int, delete_files: bool = False, db: Session = Depends(get_db)):
     item = db.get(Series, series_id)

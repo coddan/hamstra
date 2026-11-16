@@ -33,6 +33,12 @@ def get_engine(db: Session) -> Engine:
         else:
             from .libtorrent_engine import LibtorrentEngine
             _engine = LibtorrentEngine(settings.data_dir / "torrents", bind_interface=cfg["bind_interface"] or None)
+        try:
+            from ..services import seeding
+
+            seeding.apply_limits(db, _engine)
+        except Exception:
+            pass  # retried on the next queue sync
     return _engine
 
 

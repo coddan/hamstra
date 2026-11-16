@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Album, Blocklist, Episode, History, Movie, QueueItem, Series
 from ..indexers import manager
-from ..services import decision, grab, queue
+from ..services import decision, grab, queue, seeding
 from ..services.errors import GrabBlocked
 from ..services.parser import parse
 
@@ -112,6 +112,61 @@ def calendar(start: date | None = None, end: date | None = None, db: Session = D
         out.append({"type": "movie", "date": m.release_date.isoformat(), "movie_id": m.id, "series": m.title,
                     "season": None, "number": None, "title": m.title, "has_file": m.has_file, "monitored": m.monitored})
     return sorted(out, key=lambda x: x["date"])
+
+
+@router.get("/wanted")
+def wanted(db: Session = Depends(get_db)):
+    """What the automation is watching: the same rules the hourly search and RSS sync use."""
+    today = date.today()
+    active = db.query(QueueItem).filter(QueueItem.status.in_(grab.ACTIVE)).all()
+    queued_eps = {int(i) for q in active if q.kind == "episode" for i in q.episode_ids.split(",") if i}
+    queued_movies = {q.movie_id for q in active if q.movie_id}
+    queued_albums = {q.album_id for q in active if q.album_id}
+
+    movies_all = db.query(Movie).all()
+    movies = []
+    for m in movies_all:
+        if not m.monitored:
+            continue
+        prof = grab.profile_for(db, m.quality_profile_id)
+        if not decision.meets_cutoff(m.has_file, m.file_resolution, prof.cutoff, prof.upgrade_allowed):
+            movies.append({"id": m.id, "title": m.title, "year": m.year, "downloading": m.id in queued_movies,
+                           "release_date": m.release_date.isoformat() if m.release_date else None})
+
+    series = []
+    all_series = db.query(Series).all()
+    for s in all_series:
+        if not s.monitored:
+            continue
+        prof = grab.profile_for(db, s.quality_profile_id)
+        missing = upcoming = downloading = 0
+        next_air = None
+        for e in s.episodes:
+            if not e.monitored:
+                continue
+            if e.air_date is None or e.air_date > today:
+                upcoming += 1
+                if e.air_date and (next_air is None or e.air_date < next_air):
+                    next_air = e.air_date
+            elif not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff, prof.upgrade_allowed):
+                missing += 1
+                downloading += e.id in queued_eps
+        series.append({"id": s.id, "title": s.title, "status": s.status, "missing": missing, "downloading": downloading,
+                       "upcoming": upcoming, "next_air": next_air.isoformat() if next_air else None})
+
+    albums = [{"id": a.id, "title": f"{a.artist} - {a.title}", "downloading": a.id in queued_albums}
+              for a in db.query(Album).filter_by(monitored=True, has_files=False)]
+    return {
+        "summary": {
+            "movies_monitored": sum(m.monitored for m in movies_all), "movies_total": len(movies_all),
+            "series_monitored": len(series), "series_total": len(all_series),
+            "albums_monitored": db.query(Album).filter_by(monitored=True).count(),
+            "protect_existing": seeding.download_rules(db)["protect_existing"],
+        },
+        "movies": sorted(movies, key=lambda x: x["title"].lower()),
+        "series": sorted(series, key=lambda x: (-x["missing"], x["title"].lower())),
+        "albums": albums,
+    }
 
 
 @router.post("/commands/search-wanted")
@@ -247,7 +302,7 @@ def search_season_pack(sid: int, season: int, db: Session = Depends(get_db)):
     if not s:
         raise HTTPException(404)
     prof = grab.profile_for(db, s.quality_profile_id)
-    eps = [e for e in s.episodes if e.season == season and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff)]
+    eps = [e for e in s.episodes if e.season == season and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff, prof.upgrade_allowed)]
     if not eps:
         return {"grabbed": None, "detail": "nothing missing in this season"}
     item = grab.search_season(db, s, season, eps)

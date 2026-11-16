@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Album, Episode, History, Movie, QueueItem, Series
-from . import naming, notify, refresh, unpack
+from . import naming, notify, refresh, seeding, unpack
 from .request_notice import mark_available
 from .parser import parse
 
@@ -27,9 +27,11 @@ def find_videos(path: Path) -> list[Path]:
     )
 
 
-def place(src: Path, dest: Path, mode: str) -> str:
+def place(src: Path, dest: Path, mode: str, overwrite: bool = True) -> str:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
+        if not overwrite:
+            return "kept"
         dest.unlink()
     if mode == "move":
         size = src.stat().st_size
@@ -150,10 +152,11 @@ def _import_album(db: Session, item: QueueItem, src_root: Path) -> bool:
         if dest.exists() and music.has_audio(dest):   # never mix two versions of an album in one folder
             dest = dest.with_name(f"{dest.name} [{quality}]")
         mode = "move" if scratch else settings.import_mode
+        protect = seeding.download_rules(db)["protect_existing"]
         used = set()
         for f in files:
             rel = f.name if base.is_file() else str(f.relative_to(base))
-            used.add(place(f, dest / rel, mode))
+            used.add(place(f, dest / rel, mode, overwrite=not protect))
         album.has_files, album.file_format = True, quality
         if not album.path or Path(album.path) != dest:
             album.path = str(dest)
@@ -203,21 +206,26 @@ def _place_and_finish(db: Session, item: QueueItem, videos: list[Path], scratch:
 
     quality = parse(item.title).resolution
     mode = "move" if scratch else settings.import_mode  # unpacked files are ours: move, don't copy
+    protect = seeding.download_rules(db)["protect_existing"]  # never replace or delete a file already in the library
     used_unpack = bool(scratch)
     used: set[str] = set()
     subs = 0
     upgraded = False
+    kept = 0
 
     if item.kind == "movie":
         m = db.get(Movie, item.movie_id)
         video = videos[0]
         folder = Path(m.path or "")
         dest = folder / f"{naming.folder_name(m.title, m.year)}{video.suffix.lower()}"
-        upgraded = m.has_file
-        used.add(place(video, dest, mode))
-        subs += copy_subtitles(sub_root, video, dest, len(videos) > 1)
-        _remove_old_movie_files(folder, dest)
-        m.has_file, m.file_resolution = True, quality
+        if protect and (m.has_file or dest.exists()):
+            kept += 1
+        else:
+            upgraded = m.has_file
+            used.add(place(video, dest, mode, overwrite=not protect))
+            subs += copy_subtitles(sub_root, video, dest, len(videos) > 1)
+            _remove_old_movie_files(folder, dest)
+            m.has_file, m.file_resolution = True, quality
     else:
         s = db.get(Series, item.series_id)
         wanted = {e.id: e for e in db.query(Episode).filter(Episode.id.in_([int(i) for i in item.episode_ids.split(",") if i]))}
@@ -239,13 +247,16 @@ def _place_and_finish(db: Session, item: QueueItem, videos: list[Path], scratch:
                     f"{naming.clean(s.title)} - S{e.season:02d}E{e.number:02d}"
                     f"{' - ' + naming.clean(e.title) if e.title else ''}{video.suffix.lower()}"
                 )
+                if protect and (e.has_file or dest.exists()):
+                    kept += 1
+                    continue
                 upgraded = upgraded or e.has_file
-                used.add(place(video, dest, mode))
+                used.add(place(video, dest, mode, overwrite=not protect))
                 subs += copy_subtitles(sub_root, video, dest, len(videos) > 1)
                 _remove_old(e.file_path, dest)
                 e.file_path, e.file_resolution = str(dest), quality
                 placed += 1
-        if not placed:
+        if not placed and not kept:
             item.status, item.error = "failed", "no matching episodes in download"
             db.add(History(event="failed", title=item.title, detail=item.error))
             db.commit()
@@ -253,11 +264,15 @@ def _place_and_finish(db: Session, item: QueueItem, videos: list[Path], scratch:
 
     item.status = "seeding"
     item.imported_at = datetime.utcnow()
-    db.add(History(event="upgraded" if upgraded else "imported", title=item.title, detail=f"method={'/'.join(sorted(used))}{', unpacked from archive' if used_unpack else ''}{f', {subs} subtitle file(s)' if subs else ''}"))
+    if kept:
+        db.add(History(event="kept", title=item.title, detail=f"{kept} file(s) already in the library were left untouched; the torrent keeps seeding"))
+    if used:
+        db.add(History(event="upgraded" if upgraded else "imported", title=item.title, detail=f"method={'/'.join(sorted(used))}{', unpacked from archive' if used_unpack else ''}{f', {subs} subtitle file(s)' if subs else ''}"))
     db.commit()
-    notify.send(db, f"Imported: {item.title}")
-    notify.plex_refresh(db, _library_path(db, item))
-    mark_available(db, item)
+    if used:
+        notify.send(db, f"Imported: {item.title}")
+        notify.plex_refresh(db, _library_path(db, item))
+        mark_available(db, item)
     return True
 
 

@@ -50,6 +50,10 @@ def accumulate(item: QueueItem, t) -> tuple[int, int]:
 def sync(db: Session, wait: bool = False) -> dict:
     engine = get_engine(db)
     vpn.enforce(db, engine)
+    try:
+        seeding.apply_limits(db, engine)
+    except Exception as e:
+        log.warning("could not apply speed limits: %s", e)
     status = {t.info_hash: t for t in engine.list()}
     stats = {"updated": 0, "imported": 0, "failed": 0}
     futures: list[Future] = []

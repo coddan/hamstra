@@ -31,9 +31,21 @@ def satisfied(rules: dict, ratio: float, seeding_seconds: int) -> bool:
 
 from ..config import settings
 
-DL_DEFAULTS = {"stall_hours": 6.0, "min_free_gb": settings.min_free_gb}  # 0 disables each check
+DL_DEFAULTS = {"stall_hours": 6.0, "min_free_gb": settings.min_free_gb,  # 0 disables each check
+               "max_download_kbps": 0, "max_upload_kbps": 0,  # KiB/s for all torrents together, 0 = unlimited
+               "protect_existing": True}  # never replace or delete a file already in the library
 
 
 def download_rules(db: Session) -> dict:
     row = db.get(Setting, "downloads")
     return {**DL_DEFAULTS, **(json.loads(row.value) if row else {})}
+
+
+def apply_limits(db: Session, engine) -> None:
+    """Push the speed caps to the torrent client; only talks to it when the values changed."""
+    rules = download_rules(db)
+    want = (max(0, int(rules["max_download_kbps"] or 0)) * 1024, max(0, int(rules["max_upload_kbps"] or 0)) * 1024)
+    if getattr(engine, "_applied_limits", None) == want or not hasattr(engine, "set_limits"):
+        return
+    engine.set_limits(*want)
+    engine._applied_limits = want

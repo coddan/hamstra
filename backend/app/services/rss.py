@@ -25,14 +25,14 @@ def sync(db: Session) -> dict:
     movies: dict[str, list[Movie]] = {}
     for m in db.query(Movie).filter_by(monitored=True).all():
         prof = grab.profile_for(db, m.quality_profile_id)
-        if not decision.meets_cutoff(m.has_file, m.file_resolution, prof.cutoff):
+        if not decision.meets_cutoff(m.has_file, m.file_resolution, prof.cutoff, prof.upgrade_allowed):
             movies.setdefault(_key(m.title), []).append(m)
 
     shows: dict[str, list[tuple[Series, Episode]]] = {}
     for s in db.query(Series).filter_by(monitored=True).all():
         prof = grab.profile_for(db, s.quality_profile_id)
         for e in s.episodes:
-            if e.monitored and e.air_date and e.air_date <= today and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff):
+            if e.monitored and e.air_date and e.air_date <= today and not decision.meets_cutoff(e.has_file, e.file_resolution, prof.cutoff, prof.upgrade_allowed):
                 shows.setdefault(_key(s.title), []).append((s, e))
 
     albums = db.query(Album).filter_by(monitored=True, has_files=False).all()

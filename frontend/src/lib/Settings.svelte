@@ -178,6 +178,11 @@
 <h3>Download safety</h3>
 <label>Give up on a download with no progress for (hours, 0 = never) <input type="number" min="0" step="1" bind:value={dl.stall_hours} /></label>
 <label>Do not start downloads when free space is below (GB, 0 = no check) <input type="number" min="0" step="5" bind:value={dl.min_free_gb} /></label>
+<label class="inline"><input type="checkbox" bind:checked={dl.protect_existing} /> Protect existing library files: never replace, delete or re-download anything already in the library</label>
+<h3>Speed limits</h3>
+<p><small>Total for all torrents together, in KB/s. 0 = unlimited. Applied immediately when saved.</small></p>
+<label>Download limit (KB/s) <input type="number" min="0" step="100" bind:value={dl.max_download_kbps} /></label>
+<label>Upload limit (KB/s) <input type="number" min="0" step="100" bind:value={dl.max_upload_kbps} /></label>
 <button onclick={() => saveSection('downloads', dl)}>Save</button>
 
 <h3>Seeding</h3>

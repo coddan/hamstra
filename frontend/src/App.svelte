@@ -8,6 +8,7 @@
   import Music from './lib/Music.svelte'
   import Requests from './lib/Requests.svelte'
   import Calendar from './lib/Calendar.svelte'
+  import Monitoring from './lib/Monitoring.svelte'
   import Login from './lib/Login.svelte'
   import { auth, refreshAuth } from './lib/auth.svelte'
   import { nav } from './lib/nav.svelte'
@@ -15,7 +16,7 @@
   type Status = { version: string; roots: Record<string, string>; tmdb_configured: boolean }
   type Root = { id: number; path: string; kind: string; exists: boolean }
 
-  const baseAdmin = ['dashboard', 'movies', 'series', 'music', 'others', 'queue', 'system', 'settings']
+  const baseAdmin = ['dashboard', 'movies', 'series', 'monitoring', 'music', 'others', 'queue', 'system', 'settings']
   const baseUser = ['dashboard', 'movies', 'series', 'queue', 'settings']
   let pendingRequests = $state(0)
   let unlinked = $state(0)
@@ -92,6 +93,8 @@
       <Library kind={nav.page as 'movies' | 'series'} />
     {:else if nav.page === 'music'}
       <Music />
+    {:else if nav.page === 'monitoring'}
+      <Monitoring />
     {:else if nav.page === 'requests'}
       <Requests />
     {:else if nav.page === 'system'}

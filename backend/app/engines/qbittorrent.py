@@ -28,6 +28,11 @@ class QBittorrent:
         r.raise_for_status()
         return r
 
+    def set_limits(self, down_bps: int, up_bps: int) -> None:
+        """Bytes per second; 0 means unlimited."""
+        self._req("POST", "/transfer/setDownloadLimit", data={"limit": max(0, int(down_bps))})
+        self._req("POST", "/transfer/setUploadLimit", data={"limit": max(0, int(up_bps))})
+
     def add(self, url: str, save_path: str, category: str = "hamstra") -> str | None:
         self._req("POST", "/torrents/add", data={"urls": url, "savepath": save_path, "category": category})
         m = re.search(r"btih:([0-9a-fA-F]{40})", url)

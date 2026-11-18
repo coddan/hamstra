@@ -32,7 +32,7 @@ def get_engine(db: Session) -> Engine:
             _engine = QBittorrent(cfg["url"], cfg["username"], cfg["password"])
         else:
             from .libtorrent_engine import LibtorrentEngine
-            _engine = LibtorrentEngine(settings.data_dir / "torrents", bind_interface=cfg["bind_interface"] or None)
+            _engine = LibtorrentEngine(settings.data_dir / "torrents", port=settings.torrent_port, bind_interface=cfg["bind_interface"] or None)
         try:
             from ..services import seeding
 

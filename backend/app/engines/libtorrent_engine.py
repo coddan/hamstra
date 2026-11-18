@@ -1,5 +1,6 @@
 """Built-in torrent engine on libtorrent. Requires the `libtorrent` package (Python 3.12 image)."""
 import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -8,16 +9,22 @@ from .base import TorrentStatus
 
 
 class LibtorrentEngine:
-    def __init__(self, state_dir: Path, listen_interface: str = "0.0.0.0:6881", bind_interface: str | None = None):
+    def __init__(self, state_dir: Path, port: int = 6881, bind_interface: str | None = None):
         import libtorrent as lt
 
         self.lt = lt
         self.state_dir = state_dir
         state_dir.mkdir(parents=True, exist_ok=True)
-        settings = {"listen_interfaces": listen_interface, "alert_mask": lt.alert.category_t.error_notification}
+        # Private trackers such as HDBits whitelist clients and reject the stock libtorrent peer id / user agent
+        # (the torrent is added but the announce fails). Identify as qBittorrent, which is whitelisted.
+        settings = {"listen_interfaces": f"0.0.0.0:{port}", "alert_mask": lt.alert.category_t.error_notification,
+                    "user_agent": "qBittorrent/4.6.7", "peer_fingerprint": "-qB4670-", "anonymous_mode": False,
+                    # never leave a new download waiting in libtorrent's queue behind many seeding torrents
+                    "active_downloads": -1, "active_seeds": -1, "active_limit": -1, "active_checking": 4,
+                    "active_dht_limit": -1, "active_tracker_limit": -1, "active_lsd_limit": -1}
         if bind_interface:  # e.g. the VPN interface, prevents leaks
             settings["outgoing_interfaces"] = bind_interface
-            settings["listen_interfaces"] = f"{bind_interface}:6881"
+            settings["listen_interfaces"] = f"{bind_interface}:{port}"
         self.ses = lt.session(settings)
         self.lock = threading.Lock()
         self._load_resume()
@@ -31,6 +38,9 @@ class LibtorrentEngine:
         for f in self.state_dir.glob("*.resume"):
             try:
                 params = self.lt.read_resume_data(f.read_bytes())
+                torrent = f.with_suffix(".torrent")  # fallback for resume data saved without the info dict
+                if params.ti is None and torrent.exists():
+                    params.ti = self.lt.torrent_info(self.lt.bdecode(torrent.read_bytes()))
                 self.ses.add_torrent(params)
             except Exception:
                 f.unlink(missing_ok=True)
@@ -102,12 +112,24 @@ class LibtorrentEngine:
                 h.set_flags(self.lt.torrent_flags.auto_managed)
                 h.resume()
 
-    def save_state(self):
+    def save_state(self, wait: float = 0):
+        """Write resume data (including the info dict, so a restart does not need the metadata again).
+        With wait > 0 it blocks until every torrent has answered, for a clean shutdown."""
+        lt = self.lt
         with self.lock:
+            pending = 0
             for h in self.ses.get_torrents():
                 if h.is_valid() and h.status().has_metadata:
-                    h.save_resume_data()
-            for a in self.ses.pop_alerts():
-                if isinstance(a, self.lt.save_resume_data_alert):
-                    (self.state_dir / f"{a.handle.info_hashes().v1}.resume").write_bytes(
-                        self.lt.write_resume_data_buf(a.params))
+                    h.save_resume_data(lt.torrent_handle.save_info_dict)
+                    pending += 1
+            deadline = time.monotonic() + wait
+            while True:
+                for a in self.ses.pop_alerts():
+                    if isinstance(a, lt.save_resume_data_alert):
+                        (self.state_dir / f"{a.handle.info_hashes().v1}.resume").write_bytes(lt.write_resume_data_buf(a.params))
+                        pending -= 1
+                    elif isinstance(a, lt.save_resume_data_failed_alert):
+                        pending -= 1
+                if pending <= 0 or time.monotonic() >= deadline:
+                    break
+                self.ses.wait_for_alert(200)

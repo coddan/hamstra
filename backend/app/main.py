@@ -41,6 +41,11 @@ async def lifespan(app: FastAPI):
     yield
     if sch:
         sch.shutdown(wait=False)
+    from .engines import factory
+
+    e = factory._engine
+    if e is not None and hasattr(e, "save_state"):
+        e.save_state(wait=8)
 
 
 app = FastAPI(title="Hamstra", version="0.1.0", lifespan=lifespan)

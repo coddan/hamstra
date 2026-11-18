@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     music_root: Path = Path("/media/music")
     downloads_dir: Path = Path("/downloads")
 
+    torrent_port: int = 6881  # some private trackers (HDBits) blacklist 6881-6889: use e.g. 51413 and publish that port
     scheduler_enabled: bool = True
     secure_cookies: bool = False  # set true when the app is served over HTTPS (reverse proxy)
     min_free_gb: float = 20.0  # default for Settings → Downloads; 0 disables the check
